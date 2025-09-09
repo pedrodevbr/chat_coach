@@ -1,0 +1,137 @@
+{
+  "linguistic_analysis": {
+    "total_messages": 1381,
+    "participants": [
+      "Pedro",
+      "Anapaula"
+    ],
+    "average_words_per_message": 3.713975380159305,
+    "average_chars_per_message": 18.941346850108616,
+    "sender_statistics": {
+      "Pedro": {
+        "messages": 673,
+        "words": 2206,
+        "chars": 10711
+      },
+      "Anapaula": {
+        "messages": 708,
+        "words": 2923,
+        "chars": 15447
+      }
+    },
+    "peak_activity_hours": [
+      [
+        10,
+        149
+      ],
+      [
+        12,
+        127
+      ],
+      [
+        9,
+        123
+      ]
+    ],
+    "conversation_span_days": 1365
+  },
+  "psychological_analysis": {
+    "emotional_tone_by_sender": {
+      "Pedro": {
+        "positive": 49,
+        "negative": 0,
+        "neutral": 624
+      },
+      "Anapaula": {
+        "positive": 71,
+        "negative": 5,
+        "neutral": 632
+      }
+    },
+    "average_response_time_minutes": 104.37659574468086,
+    "median_response_time_minutes": 7.5,
+    "total_response_interactions": 470
+  },
+  "communication_analysis": {
+    "question_percentage": 12.671976828385228,
+    "exclamation_percentage": 4.489500362056481,
+    "conversation_patterns": {
+      "Pedro": {
+        "initiated": 143,
+        "responded": 530
+      },
+      "Anapaula": {
+        "initiated": 254,
+        "responded": 454
+      }
+    },
+    "politeness_indicators": {
+      "Pedro": 6,
+      "Anapaula": 1
+    },
+    "communication_balance": {
+      "type": "bilateral",
+      "balance_percentage": 95.06,
+      "dominant_sender": "Anapaula"
+    }
+  },
+  "relationship_insights": {
+    "engagement_balance_percentage": {
+      "Pedro": 48.73280231716148,
+      "Anapaula": 51.26719768283853
+    },
+    "average_consecutive_messages": {
+      "Pedro": 3.090909090909091,
+      "Anapaula": 3.4124293785310735
+    },
+    "relationship_health_score": 80,
+    "communication_recommendations": [
+      "Incluir mais expressões de cortesia pode melhorar o tom"
+    ]
+  },
+  "ai_analysis": {
+    "sentiment_analysis": {
+      "sentimento_geral": "Neutro",
+      "dinamica_emocional": "A conversa entre Pedro e Anapaula parece ser amigável e casual, com um tom neutro predominante. Não há evidências claras de emoções intensas sendo expressas.",
+      "momentos_chave": "1. Pedro chega animado, enquanto Anapaula parece ocupada e perdida em ligações. 2. Anapaula elogia o perfil de Pedro, demonstrando apreciação. 3. Pedro compartilha sobre sua trilha e Anapaula mostra preocupação com o pai. 4. Anapaula compartilha links de vídeos e produtos, tentando engajar Pedro em diferentes assuntos.",
+      "padroes_comunicacao": "Os participantes alternam entre mensagens de texto, emojis e tentativas de chamadas de voz e vídeo. Anapaula tende a compartilhar mais links e informações, enquanto Pedro responde de forma mais direta e prática. Há uma tentativa de conexão através de perguntas sobre o bem-estar e situações do dia a dia."
+    },
+    "relationship_dynamics": {
+      "Estilo de comunicação de cada participante": {
+        "Pedro": "O estilo de comunicação de Pedro é mais informal e direto, utilizando emojis e abreviações. Parece ser mais objetivo e prático em suas mensagens.",
+        "Anapaula": "O estilo de comunicação de Anapaula é mais emotivo e detalhado, utilizando elogios, links e informações pessoais. Parece ser mais expressivo e atencioso em suas mensagens."
+      },
+      "Nivel de intimidade/proximidade": "A relação entre Pedro e Anapaula parece ser de proximidade e afeto, especialmente evidenciado pelas expressões carinhosas utilizadas por Anapaula.",
+      "Padrões de dominância ou submissão": "Não há evidências claras de padrões de dominância ou submissão na conversa, ambos parecem se comunicar de forma igualitária e respeitosa.",
+      "Compatibilidade comunicativa": "Apesar de terem estilos de comunicação diferentes, Pedro e Anapaula parecem se complementar bem, com Pedro sendo mais direto e Anapaula sendo mais detalhada e emotiva.",
+      "Áreas de possível conflito ou harmonia": "Possíveis áreas de conflito podem surgir devido às diferenças de estilos de comunicação, como a preferência por emojis de Pedro e os detalhes excessivos de Anapaula. No entanto, a harmonia na relação parece prevalecer devido à proximidade e afeto demonstrados.",
+      "Recomendações para melhorar a comunicação": "Para melhorar a comunicação, Pedro pode tentar ser um pouco mais detalhado em suas mensagens, demonstrando mais interesse e atenção. Já Anapaula pode tentar simplificar suas mensagens e ser mais direta, para facilitar a compreensão por parte de Pedro."
+    },
+    "communication_insights": {
+      "efetividade_comunicacao": {
+        "tipo": "bilateral",
+        "balance_percentage": 95.06,
+        "dominante_sender": "Anapaula"
+      },
+      "pontos_fortes": {
+        "Anapaula": "Maior engajamento e uso de expressões positivas",
+        "Pedro": "Boa média de palavras por mensagem"
+      },
+      "pontos_fracos": {
+        "Anapaula": "Baixo uso de expressões de cortesia",
+        "Pedro": "Menor engajamento e uso de expressões positivas"
+      },
+      "sugestoes": {
+        "Anapaula": "Incluir mais expressões de cortesia para melhorar o tom",
+        "Pedro": "Aumentar o engajamento e uso de expressões positivas"
+      },
+      "estrategias_engajamento": {
+        "Pedro": "Responder de forma mais rápida e com mais frequência",
+        "Anapaula": "Manter o engajamento e o uso de expressões positivas"
+      },
+      "avaliacao_relacionamento": 8,
+      "alertas_comunicacao": "Atenção ao uso de expressões de cortesia e ao equilíbrio na comunicação para evitar possíveis problemas de entendimento."
+    },
+    "ai_availability": true
+  }
+}

@@ -290,10 +290,21 @@ def main():
             report = enhanced_analyzer.generate_enhanced_report()
             
             # Main dashboard
-            st.success(f"✅ {len(base_analyzer.messages)} mensagens processadas de {len(base_analyzer.participants)} participantes!")
+            parsing_info = report['linguistic_analysis']
+            detected_format = parsing_info.get('detected_format', 'Unknown')
+            format_quality = parsing_info.get('format_quality', 'Unknown')
+            success_rate = parsing_info.get('success_rate', 0)
+            
+            # Success message with format detection
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.success(f"✅ {len(base_analyzer.messages)} mensagens processadas de {len(base_analyzer.participants)} participantes!")
+            with col2:
+                color = "🟢" if format_quality == "Excellent" else "🟡" if format_quality == "Good" else "🟠" if format_quality == "Fair" else "🔴"
+                st.info(f"{color} Formato: {detected_format}")
             
             # Metrics row
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 st.metric("💬 Total de Mensagens", len(base_analyzer.messages))
@@ -308,11 +319,14 @@ def main():
             with col4:
                 span_days = report['linguistic_analysis']['conversation_span_days']
                 st.metric("📅 Período (dias)", span_days)
+                
+            with col5:
+                st.metric("🎯 Taxa de Sucesso", f"{success_rate:.1f}%")
             
             # Tabs for different analyses
-            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
                 "📊 Visão Geral", "📈 Atividade", "💭 Análise Textual", 
-                "🧠 Análise com IA", "📋 Relatório Completo"
+                "🧠 Análise com IA", "🔍 Detalhes do Parse", "📋 Relatório Completo"
             ])
             
             with tab1:
@@ -451,6 +465,70 @@ def main():
                         st.error("❌ Análise com IA não disponível. Verifique sua chave da API.")
             
             with tab5:
+                st.header("🔍 Detalhes do Parsing")
+                
+                # Format detection info
+                st.subheader("📅 Detecção de Formato")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("🎯 Formato Detectado", detected_format)
+                    st.metric("📊 Qualidade do Parse", format_quality)
+                    
+                with col2:
+                    st.metric("✅ Taxa de Sucesso", f"{success_rate:.1f}%")
+                    parsing_stats = parsing_info.get('parsing_statistics', {})
+                    if parsing_stats:
+                        st.metric("📝 Linhas Processadas", parsing_stats.get('total_lines', 0))
+                
+                # Parsing statistics
+                if parsing_stats:
+                    st.subheader("📈 Estatísticas de Processamento")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("✅ Mensagens Extraídas", parsing_stats.get('parsed_messages', 0))
+                        st.metric("📜 Mensagens Multilinhas", parsing_stats.get('multiline_messages', 0))
+                    
+                    with col2:
+                        st.metric("🚫 Linhas Ignoradas", parsing_stats.get('skipped_lines', 0))
+                        st.metric("🔧 Mensagens do Sistema", parsing_stats.get('system_messages', 0))
+                        
+                    with col3:
+                        if parsing_stats.get('total_lines', 0) > 0:
+                            msg_ratio = (parsing_stats.get('parsed_messages', 0) / parsing_stats.get('total_lines', 1)) * 100
+                            st.metric("📋 Proporção Msg/Linhas", f"{msg_ratio:.1f}%")
+                
+                # Format compatibility guide
+                st.subheader("📱 Formatos Suportados")
+                
+                formats_info = {
+                    "🇧🇷 Brasileiro/Europeu": "DD/MM/YYYY HH:MM",
+                    "🇺🇸 Americano": "MM/DD/YYYY H:MM AM/PM",
+                    "🌍 ISO Internacional": "YYYY-MM-DD HH:MM",
+                    "🤖 Android": "DD.MM.YYYY HH:MM",
+                    "📱 Alternativo": "DD-MM-YYYY HH:MM"
+                }
+                
+                for format_name, format_example in formats_info.items():
+                    emoji = "✅" if format_name.split()[1].lower() in detected_format.lower() else "📋"
+                    st.write(f"{emoji} **{format_name}**: `{format_example}`")
+                
+                # Tips for better parsing
+                st.subheader("💡 Dicas para Melhor Análise")
+                
+                tips = [
+                    "🎯 **Taxa de sucesso baixa?** Verifique se o formato está correto",
+                    "📱 **Exportação**: Use 'Sem mídia' ao exportar do WhatsApp",
+                    "🔤 **Encoding**: Salve o arquivo como UTF-8 para caracteres especiais",
+                    "🚫 **Mensagens perdidas?** Algumas mensagens do sistema são filtradas automaticamente",
+                    "📜 **Multilinhas**: Mensagens longas são automaticamente concatenadas"
+                ]
+                
+                for tip in tips:
+                    st.markdown(f"- {tip}")
+            
+            with tab6:
                 st.header("📋 Relatório Completo")
                 
                 # Download button for full report

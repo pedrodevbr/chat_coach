@@ -9,7 +9,7 @@ class AIAnalysisConfig:
     api_key: Optional[str] = None
     model: str = "gpt-5"
     max_tokens: int = 1000
-    temperature: float = 0.7
+    temperature: float = 1
 
 class AIWhatsAppAnalyzer:
     def __init__(self, config: AIAnalysisConfig = None):

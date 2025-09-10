@@ -13,10 +13,26 @@ import json
 import io
 import base64
 from collections import Counter
+import logging
+
+# Configure logging for Streamlit app
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('streamlit_app_debug.log'),
+        logging.StreamHandler()
+    ]
+)
+app_logger = logging.getLogger(__name__)
 
 # Import our custom modules
 from whatsapp_analyzer import WhatsAppChatAnalyzer, WhatsAppMessage
 from ai_analyzer import EnhancedWhatsAppAnalyzer, AIAnalysisConfig
+from multi_ai_analyzer import MultiAIWhatsAppAnalyzer, BaseAIProvider
+from viral_metrics import ViralMetrics
+from shareable_cards import ShareableCardGenerator
+from word_blacklist import WordBlacklist
 
 # Page config
 st.set_page_config(
@@ -217,9 +233,39 @@ def main():
     # Sidebar
     st.sidebar.title("⚙️ Configurações")
     
-    # API Key input
-    api_key = st.sidebar.text_input("🔑 Chave OpenAI (opcional)", type="password", 
-                                   help="Para análises avançadas com IA")
+    # AI Model Selection
+    st.sidebar.subheader("🤖 Modelos de IA")
+    
+    # Model selection
+    available_models = ["OpenAI", "Gemini", "Claude", "Grok"]
+    selected_models = st.sidebar.multiselect(
+        "Escolha os modelos de IA:",
+        available_models,
+        default=["OpenAI"],
+        help="Selecione um ou mais modelos para análise comparativa"
+    )
+    
+    # API Keys for different providers
+    api_keys = {}
+    
+    if "OpenAI" in selected_models:
+        api_keys['openai'] = st.sidebar.text_input("🔑 Chave OpenAI", type="password", 
+                                                   help="Para análises com OpenAI/ChatGPT")
+    
+    if "Gemini" in selected_models:
+        api_keys['gemini'] = st.sidebar.text_input("🔑 Chave Google Gemini", type="password",
+                                                   help="Para análises com Google Gemini")
+    
+    if "Claude" in selected_models:
+        api_keys['anthropic'] = st.sidebar.text_input("🔑 Chave Anthropic Claude", type="password",
+                                                      help="Para análises com Claude")
+    
+    if "Grok" in selected_models:
+        api_keys['grok'] = st.sidebar.text_input("🔑 Chave X.AI Grok", type="password",
+                                                 help="Para análises com Grok")
+    
+    # Legacy OpenAI support
+    api_key = api_keys.get('openai')
     
     # File upload or example data
     st.sidebar.subheader("📁 Dados de Entrada")
@@ -278,6 +324,48 @@ def main():
             ai_config = AIAnalysisConfig(api_key=api_key if api_key else None)
             enhanced_analyzer = EnhancedWhatsAppAnalyzer(base_analyzer, ai_config)
             
+            # Initialize multi-AI analyzer if models are selected
+            multi_ai_analyzer = None
+            if selected_models and any(api_keys.values()):
+                app_logger.info(f"🔧 Initializing multi-AI analyzer with models: {selected_models}")
+                try:
+                    multi_ai_analyzer = MultiAIWhatsAppAnalyzer()
+                    
+                    # Configure providers
+                    from multi_ai_analyzer import AIModelConfig
+                    for model in selected_models:
+                        if model == "OpenAI" and api_keys.get('openai'):
+                            app_logger.info(f"⚙️ Configuring OpenAI provider")
+                            config = AIModelConfig(model_type="openai", api_key=api_keys['openai'])
+                            success = multi_ai_analyzer.add_model("openai", config)
+                            app_logger.info(f"OpenAI configuration result: {success}")
+                            
+                        elif model == "Gemini" and api_keys.get('gemini'):
+                            app_logger.info(f"⚙️ Configuring Gemini provider")
+                            config = AIModelConfig(model_type="gemini", api_key=api_keys['gemini'])
+                            success = multi_ai_analyzer.add_model("gemini", config)
+                            app_logger.info(f"Gemini configuration result: {success}")
+                            
+                        elif model == "Claude" and api_keys.get('anthropic'):
+                            app_logger.info(f"⚙️ Configuring Claude provider")
+                            config = AIModelConfig(model_type="claude", api_key=api_keys['anthropic'])
+                            success = multi_ai_analyzer.add_model("claude", config)
+                            app_logger.info(f"Claude configuration result: {success}")
+                            
+                        elif model == "Grok" and api_keys.get('grok'):
+                            app_logger.info(f"⚙️ Configuring Grok provider")
+                            config = AIModelConfig(model_type="grok", api_key=api_keys['grok'])
+                            success = multi_ai_analyzer.add_model("grok", config)
+                            app_logger.info(f"Grok configuration result: {success}")
+                    
+                    app_logger.info(f"✅ Multi-AI analyzer initialized successfully")
+                    
+                except Exception as e:
+                    app_logger.error(f"❌ Error initializing multi-AI analyzer: {e}")
+                    st.error(f"Erro ao inicializar análise multi-IA: {e}")
+            else:
+                app_logger.info("ℹ️ No models selected or no API keys provided")
+            
             # Parse chat
             base_analyzer.parse_chat(chat_text)
             
@@ -324,8 +412,8 @@ def main():
                 st.metric("🎯 Taxa de Sucesso", f"{success_rate:.1f}%")
             
             # Tabs for different analyses
-            tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                "📊 Visão Geral", "📈 Atividade", "💭 Análise Textual", 
+            tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+                "📊 Visão Geral", "🎯 Score & Viral", "📈 Atividade", "💭 Análise Textual", 
                 "🧠 Análise com IA", "🔍 Detalhes do Parse", "📋 Relatório Completo"
             ])
             
@@ -355,6 +443,183 @@ def main():
                         st.plotly_chart(emotion_fig, use_container_width=True)
             
             with tab2:
+                st.header("🎯 Score de Relacionamento & Conteúdo Viral")
+                
+                # Initialize viral metrics
+                viral_metrics = ViralMetrics(base_analyzer)
+                card_generator = ShareableCardGenerator()
+                
+                # Relationship Score (only for 2-person chats)
+                if len(base_analyzer.participants) == 2:
+                    st.subheader("💕 Compatibilidade do Relacionamento")
+                    
+                    with st.spinner("Calculando seu score de relacionamento..."):
+                        relationship_data = viral_metrics.generate_relationship_score()
+                    
+                    if "error" not in relationship_data:
+                        # Main score display
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        
+                        with col2:
+                            score = relationship_data['total_score']
+                            grade = relationship_data['grade']
+                            percentile = relationship_data['percentile']
+                            
+                            # Big score display
+                            st.markdown(f"""
+                            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; color: white;">
+                                <h1 style="font-size: 3em; margin: 0;">{score}/100</h1>
+                                <h2 style="margin: 10px 0;">Nota: {grade}</h2>
+                                <p style="font-size: 1.2em;">Melhor que {percentile}% dos casais!</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        # Personality type
+                        personality = relationship_data['personality']
+                        st.success(f"🎭 **Tipo de Relacionamento:** {personality['type']}")
+                        st.info(f"💭 {personality['description']}")
+                        
+                        # Detailed scores
+                        st.subheader("📊 Pontuação Detalhada")
+                        detailed = relationship_data['detailed_scores']
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("⚖️ Equilíbrio", f"{detailed.get('balance', 0):.1f}/20")
+                            st.metric("⚡ Velocidade", f"{detailed.get('speed', 0):.1f}/15")
+                        with col2:
+                            st.metric("💝 Sincronia Emocional", f"{detailed.get('emotion', 0):.1f}/25")
+                            st.metric("🎭 Variedade", f"{detailed.get('variety', 0):.1f}/20")
+                        with col3:
+                            st.metric("📈 Consistência", f"{detailed.get('consistency', 0):.1f}/20")
+                        
+                        # Improvements
+                        if relationship_data.get('improvements'):
+                            st.subheader("💡 Dicas de Melhoria")
+                            for improvement in relationship_data['improvements']:
+                                st.write(f"• {improvement}")
+                        
+                        # Fun facts
+                        if relationship_data.get('fun_facts'):
+                            st.subheader("🎉 Fatos Divertidos")
+                            for fact in relationship_data['fun_facts']:
+                                st.write(f"🎯 {fact}")
+                
+                # Chat Personality (for all chats)
+                st.subheader("🎭 Personalidade do Chat")
+                
+                with st.spinner("Analisando personalidade do chat..."):
+                    personality_data = viral_metrics.generate_chat_personality()
+                
+                # Display archetype with visual flair
+                archetype = personality_data['archetype']
+                st.markdown(f"""
+                <div style="text-align: center; padding: 15px; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); border-radius: 15px; color: white; margin: 10px 0;">
+                    <h2 style="margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">{archetype}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Traits
+                st.write("**Suas características:**")
+                trait_cols = st.columns(2)
+                for i, trait in enumerate(personality_data['traits']):
+                    with trait_cols[i % 2]:
+                        st.success(trait)
+                
+                # Fun description
+                st.info(f"📝 **Descrição:** {personality_data['fun_description']}")
+                
+                # Conversation Highlights
+                st.subheader("🌟 Destaques da Conversa")
+                
+                highlights = viral_metrics.generate_conversation_highlights()
+                
+                if 'timeline' in highlights:
+                    timeline = highlights['timeline']
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.metric("📅 Primeiro chat", timeline['first_message_date'])
+                        st.metric("⏱️ Duração", f"{timeline['duration_days']} dias")
+                    
+                    with col2:
+                        st.metric("💬 Msgs/dia", f"{timeline['messages_per_day']:.1f}")
+                        st.metric("📊 Total de meses", f"{timeline['duration_months']:.1f}")
+                    
+                    with col3:
+                        peak = highlights.get('peak_activity', {})
+                        if peak:
+                            st.metric("🕐 Hora pico", peak['peak_hour'])
+                            st.metric("📅 Dia pico", peak['peak_day'])
+                
+                # Social Media Cards
+                st.subheader("📱 Cards para Redes Sociais")
+                st.write("Imagens prontas para compartilhar no Instagram, Twitter, TikTok!")
+                
+                # Generate cards
+                try:
+                    cards_data = {
+                        'messages': base_analyzer.messages,
+                        'conversation_span_days': report['linguistic_analysis'].get('conversation_span_days', 0),
+                        'messages_per_day': len(base_analyzer.messages) / max(1, report['linguistic_analysis'].get('conversation_span_days', 1))
+                    }
+                    
+                    cards = card_generator.generate_all_cards(cards_data)
+                    
+                    if cards:
+                        card_cols = st.columns(2)
+                        card_names = list(cards.keys())
+                        
+                        for i, (card_name, card_data) in enumerate(cards.items()):
+                            with card_cols[i % 2]:
+                                st.image(card_data, caption=f"Card: {card_name.title()}")
+                                
+                                # Download button for each card
+                                st.download_button(
+                                    label=f"📥 Baixar {card_name.title()}",
+                                    data=base64.b64decode(card_data.split(',')[1]),
+                                    file_name=f"chat_card_{card_name}.png",
+                                    mime="image/png"
+                                )
+                    
+                except Exception as e:
+                    st.error(f"Erro ao gerar cards: {e}")
+                
+                # Premium Features Preview
+                st.subheader("✨ Funcionalidades Premium")
+                
+                premium_preview = viral_metrics.generate_premium_preview()
+                
+                # Create attractive premium section
+                st.markdown("""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 15px; color: white; text-align: center;">
+                    <h3>🚀 Desbloqueie Insights Ainda Mais Profundos!</h3>
+                    <p>Descubra o que suas mensagens realmente revelam sobre seu relacionamento com análise de IA!</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Preview features
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**🧠 Análises com IA:**")
+                    for feature in premium_preview['premium_features']['ai_insights']['preview'][:3]:
+                        st.write(f"• {feature}")
+                
+                with col2:
+                    st.write("**📊 Métricas Avançadas:**")
+                    for feature in premium_preview['premium_features']['advanced_metrics']['features'][:3]:
+                        st.write(f"• {feature}")
+                
+                # Call to action
+                st.warning("💎 **Upgrade para Premium** por apenas $4.99/mês e desbloqueie análises de IA avançadas, gráficos personalizados e insights preditivos!")
+                
+                # Mock upgrade button
+                if st.button("🔓 Fazer Upgrade Agora", type="primary"):
+                    st.balloons()
+                    st.success("🎉 Funcionalidade de upgrade será implementada em breve! Por enquanto, aproveite a análise gratuita!")
+
+            with tab3:
                 st.header("📈 Análise de Atividade")
                 
                 # Peak hours
@@ -412,59 +677,285 @@ def main():
                             st.pyplot(participant_wordcloud)
             
             with tab4:
+                st.header("💭 Análise Textual e Nuvens de Palavras")
+                
+                # Initialize word blacklist
+                blacklist = WordBlacklist()
+                
+                # Blacklist customization
+                with st.expander("🎛️ Personalizar Filtros de Palavras"):
+                    st.write("**Filtros Ativos:**")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        # Show blacklist info
+                        blacklist_info = blacklist.get_blacklist_info()
+                        st.metric("Total de palavras filtradas", blacklist_info['total_blacklisted'])
+                        
+                        st.write("**Categorias filtradas:**")
+                        for category, count in blacklist_info['categories'].items():
+                            st.write(f"• {category}: {count} palavras")
+                    
+                    with col2:
+                        # Custom blacklist
+                        st.write("**Adicionar palavras personalizadas:**")
+                        custom_words = st.text_area("Digite palavras separadas por vírgula:", 
+                                                   placeholder="exemplo: teste, palavra, filtrar")
+                        
+                        if st.button("Adicionar à lista"):
+                            if custom_words:
+                                words_to_add = [w.strip() for w in custom_words.split(',') if w.strip()]
+                                blacklist.add_custom_words(words_to_add)
+                                st.success(f"Adicionadas {len(words_to_add)} palavras ao filtro!")
+                
+                # Overall word cloud with blacklist
+                all_text = ' '.join([msg.content for msg in base_analyzer.messages])
+                
+                # Analyze text with blacklist
+                text_analysis = blacklist.analyze_text(all_text)
+                
+                # Show filtering stats
+                st.subheader("📊 Estatísticas de Filtragem")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    st.metric("Palavras originais", text_analysis['original_words'])
+                with col2:
+                    st.metric("Palavras filtradas", text_analysis['filtered_words'])
+                with col3:
+                    st.metric("Palavras removidas", text_analysis['removed_words'])
+                with col4:
+                    st.metric("% removido", f"{text_analysis['removal_percentage']:.1f}%")
+                
+                # Word clouds
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("☁️ Nuvem - Original")
+                    # Create word cloud without filtering
+                    words_original = all_text.split()
+                    if words_original:
+                        original_text_clean = ' '.join([blacklist._clean_word(w) for w in words_original if blacklist._clean_word(w)])
+                        wordcloud_fig = create_plotly_wordcloud(original_text_clean, "Palavras Mais Usadas (Original)")
+                        if wordcloud_fig:
+                            st.pyplot(wordcloud_fig)
+                    
+                    # Top original words
+                    st.write("**Top 10 palavras originais:**")
+                    for word, count in text_analysis['top_original'][:10]:
+                        st.write(f"• {word}: {count}")
+
+                with col2:
+                    st.subheader("☁️ Nuvem - Filtrada")
+                    # Create word cloud with filtering
+                    words_filtered = all_text.split()
+                    filtered_words = blacklist.remove_blacklisted_words(words_filtered)
+                    if filtered_words:
+                        filtered_text = ' '.join(filtered_words)
+                        filtered_wordcloud = create_plotly_wordcloud(filtered_text, "Palavras Relevantes (Filtrada)")
+                        if filtered_wordcloud:
+                            st.pyplot(filtered_wordcloud)
+                    
+                    # Top filtered words
+                    st.write("**Top 10 palavras filtradas:**")
+                    for word, count in text_analysis['top_filtered'][:10]:
+                        st.write(f"• {word}: {count}")
+                
+                # Participant-specific word clouds
+                if len(base_analyzer.participants) <= 5:  # Limit to avoid too many columns
+                    st.subheader("☁️ Nuvens por Participante (Filtradas)")
+                    
+                    participant_cols = st.columns(min(len(base_analyzer.participants), 3))
+                    
+                    for i, participant in enumerate(list(base_analyzer.participants)[:3]):
+                        with participant_cols[i]:
+                            st.write(f"**{participant}**")
+                            
+                            participant_messages = [
+                                msg.content for msg in base_analyzer.messages 
+                                if msg.sender == participant
+                            ]
+                            
+                            if participant_messages:
+                                participant_text = ' '.join(participant_messages)
+                                participant_words = participant_text.split()
+                                participant_filtered = blacklist.remove_blacklisted_words(participant_words)
+                                
+                                if participant_filtered:
+                                    participant_clean_text = ' '.join(participant_filtered)
+                                    participant_wordcloud = create_plotly_wordcloud(
+                                        participant_clean_text, 
+                                        f"Palavras de {participant}"
+                                    )
+                                    if participant_wordcloud:
+                                        st.pyplot(participant_wordcloud)
+                                else:
+                                    st.info("Todas as palavras foram filtradas para este participante")
+                            else:
+                                st.info("Nenhuma mensagem encontrada")
+                
+                # Suggestions for custom blacklist
+                if st.checkbox("🔍 Mostrar sugestões de palavras para filtrar"):
+                    suggestions = blacklist.suggest_custom_blacklist(all_text, min_frequency=3)
+                    
+                    if suggestions:
+                        st.subheader("💡 Sugestões de Palavras para Filtrar")
+                        st.write("Palavras frequentes que você pode querer filtrar:")
+                        
+                        suggestion_cols = st.columns(3)
+                        for i, (word, count) in enumerate(suggestions[:15]):
+                            with suggestion_cols[i % 3]:
+                                if st.button(f"Filtrar '{word}' ({count}x)", key=f"suggest_{word}"):
+                                    blacklist.add_custom_words([word])
+                                    st.success(f"'{word}' adicionada ao filtro!")
+                                    st.experimental_rerun()
+                    else:
+                        st.info("Nenhuma sugestão encontrada. Seu texto já está bem limpo!")
+
+            with tab5:
                 st.header("🧠 Análise Avançada com IA")
                 
-                if not api_key:
-                    st.warning("🔑 Configure uma chave da OpenAI para análises avançadas!")
-                    st.info("💡 Você ainda pode ver as análises básicas nas outras abas.")
+                if not selected_models or not any(api_keys.values()):
+                    st.warning("🔑 Configure pelo menos um modelo de IA para análises avançadas!")
+                    st.info("💡 Selecione os modelos de IA na barra lateral e configure as respectivas chaves API.")
+                    
+                    # Show available models
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write("**🤖 Modelos Disponíveis:**")
+                        st.write("• **OpenAI GPT** - Análise conversacional avançada")
+                        st.write("• **Google Gemini** - Insights multimodais")
+                    with col2:
+                        st.write("• **Anthropic Claude** - Análise psicológica profunda")
+                        st.write("• **X.AI Grok** - Perspectivas humorísticas e criativas")
+                
                 else:
-                    ai_data = report.get('ai_analysis', {})
+                    # Show selected models
+                    st.success(f"🎯 Analisando com: {', '.join(selected_models)}")
                     
-                    if ai_data.get('ai_availability', False):
-                        # Sentiment analysis
-                        st.subheader("😊 Análise de Sentimentos")
-                        sentiment = ai_data.get('sentiment_analysis', {})
+                    # Multi-AI Analysis
+                    if multi_ai_analyzer and len(selected_models) > 1:
+                        st.subheader("🔄 Análise Comparativa Multi-IA")
                         
-                        if 'sentimento_geral' in sentiment:
-                            st.write(f"**Sentimento Geral:** {sentiment['sentimento_geral']}")
-                        
-                        if 'dinamica_emocional' in sentiment:
-                            st.markdown(f"**Dinâmica Emocional:** {sentiment['dinamica_emocional']}")
-                        
-                        if 'momentos_chave' in sentiment:
-                            st.subheader("🎯 Momentos Chave")
-                            for momento in sentiment['momentos_chave']:
-                                st.write(f"• {momento}")
-                        
-                        # Relationship dynamics
-                        st.subheader("💫 Dinâmica de Relacionamento")
-                        relationship = ai_data.get('relationship_dynamics', {})
-                        
-                        for key, value in relationship.items():
-                            if isinstance(value, dict):
-                                st.write(f"**{key.title()}:**")
-                                for subkey, subvalue in value.items():
-                                    st.write(f"  • {subkey}: {subvalue}")
-                            else:
-                                st.write(f"**{key.title()}:** {value}")
-                        
-                        # Communication insights
-                        st.subheader("💡 Insights de Comunicação")
-                        comm_insights = ai_data.get('communication_insights', {})
-                        
-                        if 'avaliacao_potencial_relacionamento' in comm_insights:
-                            score = comm_insights['avaliacao_potencial_relacionamento']
-                            st.metric("🎯 Score do Relacionamento", f"{score}/10")
-                        
-                        if 'alertas_problemas_comunicacao' in comm_insights:
-                            st.subheader("⚠️ Alertas")
-                            for alerta in comm_insights['alertas_problemas_comunicacao']:
-                                st.warning(f"⚠️ {alerta}")
+                        with st.spinner("Executando análise com múltiplos modelos de IA..."):
+                            try:
+                                # Get all messages as text for analysis
+                                messages_text = [msg.content for msg in base_analyzer.messages]
+                                
+                                # Run sentiment analysis across models
+                                if st.button("🚀 Executar Análise Multi-IA", type="primary"):
+                                    import asyncio
+                                    
+                                    # Create async wrapper for Streamlit
+                                    async def run_multi_analysis():
+                                        sentiment_results = await multi_ai_analyzer.analyze_sentiment_multi_model(
+                                            messages_text[:20],  # Limit for demo
+                                            models=[model.lower() for model in selected_models]
+                                        )
+                                        return sentiment_results
+                                    
+                                    # Run analysis
+                                    try:
+                                        loop = asyncio.new_event_loop()
+                                        asyncio.set_event_loop(loop)
+                                        results = loop.run_until_complete(run_multi_analysis())
+                                        
+                                        # Display results
+                                        if results and results.get('individual_results'):
+                                            st.subheader("📊 Resultados por Modelo")
+                                            
+                                            # Create columns for each model
+                                            model_cols = st.columns(len(selected_models))
+                                            
+                                            for i, model in enumerate(selected_models):
+                                                model_key = model.lower()
+                                                with model_cols[i]:
+                                                    st.write(f"**{model}**")
+                                                    
+                                                    if model_key in results['individual_results']:
+                                                        model_result = results['individual_results'][model_key]
+                                                        
+                                                        if 'sentiment' in model_result:
+                                                            sentiment = model_result['sentiment']
+                                                            st.metric("Sentimento", sentiment.get('overall', 'N/A'))
+                                                        
+                                                        if 'insights' in model_result:
+                                                            st.write("**Insights:**")
+                                                            insights = model_result['insights'][:2]  # Show first 2
+                                                            for insight in insights:
+                                                                st.write(f"• {insight}")
+                                                    else:
+                                                        st.error(f"Erro na análise com {model}")
+                                            
+                                            # Consensus results
+                                            if 'consensus' in results:
+                                                st.subheader("🎯 Consenso dos Modelos")
+                                                consensus = results['consensus']
+                                                
+                                                if 'overall_sentiment' in consensus:
+                                                    st.success(f"**Sentimento Geral:** {consensus['overall_sentiment']}")
+                                                
+                                                if 'key_insights' in consensus:
+                                                    st.write("**Insights Principais:**")
+                                                    for insight in consensus['key_insights']:
+                                                        st.write(f"✨ {insight}")
+                                        
+                                    except Exception as e:
+                                        st.error(f"Erro durante análise multi-IA: {e}")
+                                        st.info("Tente com um modelo individual primeiro.")
+                            
+                            except Exception as e:
+                                st.error(f"Erro ao configurar análise multi-IA: {e}")
                     
-                    else:
-                        st.error("❌ Análise com IA não disponível. Verifique sua chave da API.")
+                    # Individual model analysis (legacy support)
+                    if api_key:
+                        ai_data = report.get('ai_analysis', {})
+                        
+                        if ai_data.get('ai_availability', False):
+                            # Sentiment analysis
+                            st.subheader("😊 Análise de Sentimentos")
+                            sentiment = ai_data.get('sentiment_analysis', {})
+                            
+                            if 'sentimento_geral' in sentiment:
+                                st.write(f"**Sentimento Geral:** {sentiment['sentimento_geral']}")
+                            
+                            if 'dinamica_emocional' in sentiment:
+                                st.markdown(f"**Dinâmica Emocional:** {sentiment['dinamica_emocional']}")
+                            
+                            if 'momentos_chave' in sentiment:
+                                st.subheader("🎯 Momentos Chave")
+                                for momento in sentiment['momentos_chave']:
+                                    st.write(f"• {momento}")
+                            
+                            # Relationship dynamics
+                            st.subheader("💫 Dinâmica de Relacionamento")
+                            relationship = ai_data.get('relationship_dynamics', {})
+                            
+                            for key, value in relationship.items():
+                                if isinstance(value, dict):
+                                    st.write(f"**{key.title()}:**")
+                                    for subkey, subvalue in value.items():
+                                        st.write(f"  • {subkey}: {subvalue}")
+                                else:
+                                    st.write(f"**{key.title()}:** {value}")
+                            
+                            # Communication insights
+                            st.subheader("💡 Insights de Comunicação")
+                            comm_insights = ai_data.get('communication_insights', {})
+                            
+                            if 'avaliacao_potencial_relacionamento' in comm_insights:
+                                score = comm_insights['avaliacao_potencial_relacionamento']
+                                st.metric("🎯 Score do Relacionamento", f"{score}/10")
+                            
+                            if 'alertas_problemas_comunicacao' in comm_insights:
+                                st.subheader("⚠️ Alertas")
+                                for alerta in comm_insights['alertas_problemas_comunicacao']:
+                                    st.warning(f"⚠️ {alerta}")
+                        
+                        else:
+                            st.error("❌ Análise com IA não disponível. Verifique sua chave da API.")
             
-            with tab5:
+            with tab6:
                 st.header("🔍 Detalhes do Parsing")
                 
                 # Format detection info
@@ -528,7 +1019,7 @@ def main():
                 for tip in tips:
                     st.markdown(f"- {tip}")
             
-            with tab6:
+            with tab7:
                 st.header("📋 Relatório Completo")
                 
                 # Download button for full report

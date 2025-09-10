@@ -56,5 +56,6 @@ whatsapp_analysis_*.png
 whatsapp_analysis_*.html
 
 # Large test files (keep only samples)
-# conversa1.txt
-# conversa2.txt
+conversa1.txt
+conversa2.txt
+conversa3.txt
